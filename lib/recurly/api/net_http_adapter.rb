@@ -1,3 +1,4 @@
+require 'cgi'
 require 'net/https'
 
 module Recurly
@@ -35,9 +36,12 @@ module Recurly
           head = headers.dup
           head.update options[:head] if options[:head]
           head.delete_if { |_, value| value.nil? }
-          uri = base_uri + uri
+          uri = base_uri + URI.escape(uri)
           if options[:params] && !options[:params].empty?
-            uri += "?#{options[:params].map { |k, v| "#{k}=#{v}" }.join '&' }"
+            pairs = options[:params].map { |key, value|
+              "#{CGI.escape key.to_s}=#{CGI.escape value.to_s}"
+            }
+            uri += "?#{pairs.join '&'}"
           end
           request = METHODS[method].new uri.request_uri, head
           request.basic_auth(*[Recurly.api_key, nil].flatten[0, 2])
@@ -95,6 +99,8 @@ module Recurly
             when 200...300 then response
             else                raise ERRORS[code].new request, response
           end
+        rescue Errno::ECONNREFUSED => e
+          raise Error, e.message
         end
       end
     end

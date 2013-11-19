@@ -1,6 +1,6 @@
 # Recurly [![Build Status](https://secure.travis-ci.org/recurly/recurly-client-ruby.png)](http://travis-ci.org/recurly/recurly-client-ruby)
 
-<https://github.com/recurly/recurly-ruby-client>
+<https://github.com/recurly/recurly-client-ruby>
 
 [Recurly](http://recurly.com/)'s Ruby client library is an interface to its
 [REST API](http://docs.recurly.com/api/basics).
@@ -12,7 +12,7 @@ Recurly is packaged as a Ruby gem. We recommend you install it with
 [Bundler](http://gembundler.com/) by adding the following line to your Gemfile:
 
 ``` ruby
-gem 'recurly', '~> 2.1.5'
+gem 'recurly', '~> 2.2.0'
 ```
 
 Recurly will automatically use [Nokogiri](http://nokogiri.org/) (for a nice
@@ -31,6 +31,7 @@ $ rails g recurly:config
 If you're not using Rails, use the following template:
 
 ``` ruby
+Recurly.subdomain      = ENV['RECURLY_SUBDOMAIN']
 Recurly.api_key        = ENV['RECURLY_API_KEY']
 Recurly.js.private_key = ENV['RECURLY_JS_PRIVATE_KEY']
 ```
@@ -61,7 +62,7 @@ Instructions and examples are available on
 [Recurly's documentation site](http://docs.recurly.com/api/basics).
 
 Recurly's gem API is available
-[here](http://rubydoc.info/gems/recurly/2.1.5/frames).
+[here](http://rubydoc.info/gems/recurly/2.1.9/frames).
 
 
 ## Contributing
@@ -69,7 +70,7 @@ Recurly's gem API is available
 Developing for the Recurly gem is easy with [Bundler](http://gembundler.com/).
 
 Fork and clone the repository, `cd` into the directory, and, with a Ruby of
-your choice (1.8.7 is supported, but we suggest 1.9.2 or greater), set up your
+your choice (1.9.3 or greater), set up your
 environment.
 
 If you don't have Bundler installed, install it with the following command:
@@ -107,7 +108,7 @@ your changes.
 
 (The MIT License.)
 
-© 2009–2012 Recurly Inc.
+© 2009–2013 Recurly Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

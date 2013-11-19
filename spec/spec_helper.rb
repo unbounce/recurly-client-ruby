@@ -7,6 +7,11 @@ require 'webmock'
 module SpecHelper
   include WebMock::API
 
+  def get_raw_xml fixture
+    xml = File.open(File.dirname(__FILE__) + "/fixtures/" + fixture, "rb") { |f| f.read }
+    return (Recurly::XML.new xml).to_s
+  end
+
   def stub_api_request method, uri, fixture = nil
     uri = API.base_uri + uri
     uri.user = CGI.escape Recurly.api_key
@@ -85,6 +90,7 @@ Content-Type: application/xml; charset=utf-8
 
 <errors>
   <error field="resource.name" symbol="invalid_name">is a bad name</error>
+  <error field="resource.child.name" symbol="invalid_name">is a bad name</error>
 </errors>
 EOR
   404 => <<EOR,

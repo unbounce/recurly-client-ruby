@@ -149,9 +149,9 @@ XML
           3.times { |n| record[:seasons][n].must_be_kind_of Integer }
           record[:never_gonna_happen]['season'].must_be_kind_of Integer
           stub_api_request(:put, 'resources/1/renew') { "HTTP/1.1 200\n" }
-          record[:renew].call
+          record.follow_link :renew
           stub_api_request(:delete, 'resources/1/cancel') { "HTTP/1.1 422\n" }
-          proc { record[:cancel].call }.must_raise API::UnprocessableEntity
+          proc { record.follow_link :cancel }.must_raise API::UnprocessableEntity
         end
       end
     end
@@ -381,13 +381,21 @@ XML
 
       describe "invalid records" do
         before do
+          Recurly.const_set :Child, resource
+          resource.has_one :child, :readonly => false
+          record.child = resource.new
           stub_api_request(:post, 'resources') { XML[422] }
+        end
+
+        after do
+          Recurly.send :remove_const, :Child
         end
 
         it "#save must return false and assign errors" do
           record.errors.empty?.must_equal true
           record.save.must_equal false
           record.errors[:name].wont_be_nil
+          record.child.errors[:name].wont_be_nil
         end
 
         it "#save! must raise an exception" do
@@ -398,7 +406,7 @@ XML
 
     describe "#errors" do
       it "must return a Hash for errors" do
-        record.errors.must_be_instance_of Hash
+        record.errors.must_be_kind_of Hash
       end
     end
 
@@ -453,5 +461,33 @@ XML
         proc { record.destroy }.must_raise Resource::NotFound
       end
     end
+
+    describe "#valid?" do
+      it "must return true if persisted without changes" do
+        record.persist!
+        record.valid?.must_equal true
+      end
+
+      it "must return true if not persisted without changes and no errors" do
+        record.valid?.must_equal true
+      end
+
+      it "must return nil if persisted with changes" do
+        record.persist!
+        record[:uuid] = 'changed'
+        record.valid?.must_equal nil
+      end
+
+      it "must return nil if not persisted with changes and no errors" do
+        record[:uuid] = 'changed'
+        record.valid?.must_equal nil
+      end
+
+      it "must return false if it has errors" do
+        record.errors[:name] = 'an error'
+        record.valid?.must_equal false
+      end
+    end
+
   end
 end
