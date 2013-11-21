@@ -781,7 +781,7 @@ module Recurly
     # @return [true, false, nil] The validity of the record: +true+ if the
     #   record was successfully saved (or persisted and unchanged), +false+ if
     #   the record was not successfully saved, or +nil+ for a record with an
-    #   unknown state (i.e.  (i.e. new records that haven't been saved and
+    #   unknown state (i.e. new records that haven't been saved and
     #   persisted records with changed attributes).
     # @example
     #   account = Recurly::Account.new
@@ -972,7 +972,16 @@ module Recurly
       document = XML.new exception.response.body
       document.each_element 'error' do |el|
         attribute_path = el.attribute('field').value.split '.'
-        invalid! attribute_path[1, attribute_path.length], el.text
+
+        # Repsonses that come back in the form of
+        # 'billing_info.billing_info.something_here' won't get attached to the
+        # erros. Even if they do the error messages are less then
+        # informative. Remove this when Recurly fixes api responses.
+        if attribute_path.count('billing_info') >= 1
+          invalid! ['base'], 'The transaction was declined. Please use a different card, contact your bank, or contact support.'
+        else
+          invalid! attribute_path[1, attribute_path.length], el.text
+        end
       end
     end
 
