@@ -977,7 +977,7 @@ module Recurly
         # 'billing_info.billing_info.something_here' won't get attached to the
         # erros. Even if they do the error messages are less then
         # informative. Remove this when Recurly fixes api responses.
-        if attribute_path.count('billing_info') >= 1
+        if attribute_path.count('billing_info') >= 2
           invalid! ['base'], 'The transaction was declined. Please use a different card, contact your bank, or contact support.'
         else
           invalid! attribute_path[1, attribute_path.length], el.text
