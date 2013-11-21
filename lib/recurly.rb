@@ -19,6 +19,8 @@ module Recurly
   autoload :Version,           'recurly/version'
   autoload :XML,               'recurly/xml'
 
+  @subdomain = nil
+
   # The exception class from which all Recurly exceptions inherit.
   class Error < StandardError
     def set_message message
@@ -36,6 +38,12 @@ module Recurly
   end
 
   class << self
+    # @return [String] A subdomain.
+    def subdomain
+      @subdomain || 'api'
+    end
+    attr_writer :subdomain
+
     # @return [String] An API key.
     # @raise [ConfigurationError] If not configured.
     def api_key

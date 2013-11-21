@@ -39,6 +39,9 @@ module Recurly
       subscription_add_ons
       coupon_code
       total_billing_cycles
+      net_terms
+      collection_method
+      po_number
     )
     alias to_param uuid
 
@@ -75,7 +78,7 @@ module Recurly
 
     # @return [AddOns]
     def subscription_add_ons
-      @subscription_add_ons ||= AddOns.new self, super
+      self[:subscription_add_ons] ||= AddOns.new self, super
     end
     alias add_ons subscription_add_ons
 
@@ -94,8 +97,8 @@ module Recurly
     #   subscription = account.subscriptions.first
     #   subscription.cancel # => true
     def cancel
-      return false unless self[:cancel]
-      reload self[:cancel].call
+      return false unless link? :cancel
+      reload follow_link :cancel
       true
     end
 
@@ -116,11 +119,11 @@ module Recurly
     #   subscription = account.subscriptions.first
     #   subscription.terminate(:partial) # => true
     def terminate refund_type = :none
-      return false unless self[:terminate]
+      return false unless link? :terminate
       unless REFUND_TYPES.include? refund_type.to_s
         raise ArgumentError, "refund must be one of: #{REFUND_TYPES.join ', '}"
       end
-      reload self[:terminate].call(:params => { :refund => refund_type })
+      reload follow_link(:terminate, :params => { :refund => refund_type })
       true
     end
     alias destroy terminate
@@ -131,8 +134,8 @@ module Recurly
     #   (e.g., the subscription is already active), and may raise an exception
     #   if the reactivation fails.
     def reactivate
-      return false unless self[:reactivate]
-      reload self[:reactivate].call
+      return false unless link? :reactivate
+      reload follow_link :reactivate
       true
     end
 
@@ -142,8 +145,8 @@ module Recurly
     #   (e.g., the subscription is not active).
     # @param next_renewal_date [Time] when the subscription should renew.
     def postpone next_renewal_date
-      return false unless self[:postpone]
-      reload self[:postpone].call(
+      return false unless link? :postpone
+      reload follow_link(:postpone,
         :params => { :next_renewal_date => next_renewal_date }
       )
       true

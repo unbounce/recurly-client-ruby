@@ -113,7 +113,8 @@ module Recurly
   #
   #   Account.find_each { |account| p account }
   class Resource
-    autoload :Pager, 'recurly/resource/pager'
+    autoload :Errors, 'recurly/resource/errors'
+    autoload :Pager,  'recurly/resource/pager'
 
     # Raised when a record cannot be found.
     #
@@ -256,6 +257,11 @@ module Recurly
         @scopes ||= Recurly::Helper.hash_with_indifferent_read_access
       end
 
+      # @return [Module] Module of scopes methods.
+      def scopes_helper
+        @scopes_helper ||= Module.new.tap { |helper| extend helper }
+      end
+
       # Defines a new resource scope.
       #
       # @return [Proc]
@@ -263,8 +269,7 @@ module Recurly
       # @param [Hash] params the scope params
       def scope name, params = {}
         scopes[name = name.to_s] = params
-        extend const_set :Scopes, Module.new unless const_defined? :Scopes
-        self::Scopes.send(:define_method, name) { paginate scopes[name] }
+        scopes_helper.send(:define_method, name) { paginate scopes[name] }
       end
 
       # Iterates through every record by automatically paging.
@@ -367,7 +372,7 @@ module Recurly
       # @see from_response
       def from_xml xml
         xml = XML.new xml
-        if xml.name == member_name
+        if self != Resource || xml.name == member_name
           record = new
         elsif Recurly.const_defined?(
           class_name = Helper.classify(xml.name), false
@@ -388,13 +393,10 @@ module Recurly
 
         xml.each_element do |el|
           if el.name == 'a'
-            name, uri = el.attribute('name').value, el.attribute('href').value
-            record[name] = case el.attribute('method').to_s
-              when 'get', '' then proc { |*opts| API.get uri, {}, *opts }
-              when 'post'    then proc { |*opts| API.post uri, nil, *opts }
-              when 'put'     then proc { |*opts| API.put uri, nil, *opts }
-              when 'delete'  then proc { |*opts| API.delete uri, *opts }
-            end
+            record.links[el.attribute('name').value] = {
+              :method => el.attribute('method').to_s,
+              :href => el.attribute('href').value
+            }
             next
           end
 
@@ -402,17 +404,16 @@ module Recurly
             resource_class = Recurly.const_get(
               Helper.classify(el.attribute('type') || el.name), false
             )
-            record[el.name] = case el.name
+            case el.name
             when *associations[:has_many]
-              Pager.new resource_class, :uri => href.value, :parent => record
+              record[el.name] = Pager.new(
+                resource_class, :uri => href.value, :parent => record
+              )
             when *(associations[:has_one] + associations[:belongs_to])
-              lambda {
-                begin
-                  relation = resource_class.from_response API.get(href.value)
-                  relation.attributes[member_name] = record
-                  relation
-                rescue Recurly::API::NotFound
-                end
+              record.links[el.name] = {
+                :resource_class => resource_class,
+                :method => :get,
+                :href => href.value
               }
             end
           else
@@ -426,13 +427,13 @@ module Recurly
 
       # @return [Hash] A list of association names for the current class.
       def associations
-        @associations ||= begin
-          unless constants.include? :Associations
-            include const_set :Associations, Module.new
-          end
+        @associations ||= {
+          :has_many => [], :has_one => [], :belongs_to => []
+        }
+      end
 
-          { :has_many => [], :has_one => [], :belongs_to => [] }
-        end
+      def associations_helper
+        @associations_helper ||= Module.new.tap { |helper| include helper }
       end
 
       # Establishes a has_many association.
@@ -443,16 +444,16 @@ module Recurly
       # @option options [true, false] :readonly Don't define a setter.
       def has_many collection_name, options = {}
         associations[:has_many] << collection_name.to_s
-        self::Associations.module_eval {
-          define_method(collection_name) {
+        associations_helper.module_eval do
+          define_method collection_name do
             self[collection_name] ||= []
-          }
-          if options.key?(:readonly) && options[:readonly] == false
-            define_method("#{collection_name}=") { |collection|
-              self[collection_name] = collection
-            }
           end
-        }
+          if options.key?(:readonly) && options[:readonly] == false
+            define_method "#{collection_name}=" do |collection|
+              self[collection_name] = collection
+            end
+          end
+        end
       end
 
       # Establishes a has_one association.
@@ -463,11 +464,11 @@ module Recurly
       # @option options [true, false] :readonly Don't define a setter.
       def has_one member_name, options = {}
         associations[:has_one] << member_name.to_s
-        self::Associations.module_eval {
+        associations_helper.module_eval do
           define_method(member_name) { self[member_name] }
           if options.key?(:readonly) && options[:readonly] == false
             associated = Recurly.const_get Helper.classify(member_name), false
-            define_method("#{member_name}=") { |member|
+            define_method "#{member_name}=" do |member|
               associated_uri = "#{path}/#{member_name}"
               self[member_name] = case member
               when Hash
@@ -477,18 +478,18 @@ module Recurly
               else
                 raise ArgumentError, "expected #{associated}"
               end
-            }
-            define_method("build_#{member_name}") { |*args|
+            end
+            define_method "build_#{member_name}" do |*args|
               attributes = args.shift || {}
               self[member_name] = associated.send(
                 :new, attributes.merge(:uri => "#{path}/#{member_name}")
               ).tap { |child| child.attributes[self.class.member_name] = self }
-            }
-            define_method("create_#{member_name}") { |*args|
+            end
+            define_method "create_#{member_name}" do |*args|
               send("build_#{member_name}", *args).tap { |child| child.save }
-            }
+            end
           end
-        }
+        end
       end
 
       # Establishes a belongs_to association.
@@ -496,14 +497,14 @@ module Recurly
       # @return [Proc]
       def belongs_to parent_name, options = {}
         associations[:belongs_to] << parent_name.to_s
-        self::Associations.module_eval {
+        associations_helper.module_eval do
           define_method(parent_name) { self[parent_name] }
           if options.key?(:readonly) && options[:readonly] == false
-            define_method("#{parent_name}=") { |parent|
+            define_method "#{parent_name}=" do |parent|
               self[parent_name] = parent
-            }
+            end
           end
-        }
+        end
       end
 
       # @return [:has_many, :has_one, :belongs_to, nil] An association type.
@@ -544,10 +545,6 @@ module Recurly
       @attributes, @new_record, @destroyed, @uri, @href = {}, true, false
       self.attributes = attributes
       yield self if block_given?
-    end
-
-    def to_param
-      self[self.class.param_name]
     end
 
     # @return [self] Reloads the record from the server.
@@ -632,9 +629,11 @@ module Recurly
     #   account[:last_name]                # => "Beneke"
     # @see #write_attribute
     def read_attribute key
-      value = attributes[key = key.to_s]
-      if value.respond_to?(:call) && self.class.reflect_on_association(key)
-        value = attributes[key] = value.call
+      key = key.to_s
+      if attributes.key? key
+        value = attributes[key]
+      elsif links.key?(key) && self.class.reflect_on_association(key)
+        value = attributes[key] = follow_link key
       end
       value
     end
@@ -659,7 +658,7 @@ module Recurly
         value = fetch_association key, value
       # FIXME: More explicit; less magic.
       elsif value && key.end_with?('_in_cents') && !respond_to?(:currency)
-        value = Money.new value unless value.is_a? Money
+        value = Money.new value, self, key unless value.is_a? Money
       end
 
       attributes[key] = value
@@ -674,6 +673,39 @@ module Recurly
       attributes.each_pair { |k, v|
         respond_to?(name = "#{k}=") and send(name, v) or self[k] = v
       }
+    end
+
+    # @return [Hash] The raw hash of record href links.
+    def links
+      @links ||= {}
+    end
+
+    # Whether a record has a link with the given name.
+    #
+    # @param key [Symbol, String] The name of the link to check for.
+    # @example
+    #   account.link? :billing_info # => true
+    def link? key
+      links.key?(key.to_s)
+    end
+
+    # Fetch the value of a link by following the associated href.
+    #
+    # @param key [Symbol, String] The name of the link to be followed.
+    # @param options [Hash] A hash of API options.
+    # @example
+    #   account.read_link :billing_info # => <Recurly::BillingInfo>
+    def follow_link key, options = {}
+      if link = links[key = key.to_s]
+        response = API.send link[:method], link[:href], nil, options
+        if resource_class = link[:resource_class]
+          response = resource_class.from_response response
+          response.attributes[self.class.member_name] = self
+        end
+        response
+      end
+    rescue Recurly::API::NotFound
+      raise unless resource_class
     end
 
     # Serializes the record to XML.
@@ -760,9 +792,10 @@ module Recurly
     #   account.save   # => true
     #   account.valid? # => true
     def valid?
-      return true if persisted? && changed_attributes.empty?
-      return if errors.empty? && changed_attributes?
-      errors.empty?
+      return true if persisted? && !changed?
+      errors_empty = errors.values.flatten.empty?
+      return if errors_empty && changed?
+      errors_empty
     end
 
     # Update a record with a given hash of attributes.
@@ -799,7 +832,7 @@ module Recurly
     #   account.errors                # => {"account_code"=>["can't be blank"]}
     #   account.errors[:account_code] # => ["can't be blank"]
     def errors
-      @errors ||= Recurly::Helper.hash_with_indifferent_read_access
+      @errors ||= Errors.new { |h, k| h[k] = [] }
     end
 
     # Marks a record as persisted, i.e. not a new or deleted record, resetting
@@ -863,8 +896,9 @@ module Recurly
         @href,
         changed_attributes,
         previous_changes,
+        response,
         etag,
-        response
+        links
       ]
     end
 
@@ -877,7 +911,8 @@ module Recurly
         @changed_attributes,
         @previous_changes,
         @response,
-        @etag = serialization
+        @etag,
+        @links = serialization
     end
 
     # @return [String]
@@ -904,12 +939,12 @@ module Recurly
 
     def invalid! attribute_path, error
       if attribute_path.length == 1
-        (errors[attribute_path[0]] ||= []) << error
+        errors[attribute_path[0]] << error
       else
         child, k, v = attribute_path.shift.scan(/[^\[\]=]+/)
         if c = k ? self[child].find { |d| d[k] == v } : self[child]
           c.invalid! attribute_path, error
-          (e = errors[child] ||= []) << 'is invalid' and e.uniq!
+          e = errors[child] << 'is invalid' and e.uniq!
         end
       end
     end
@@ -937,7 +972,16 @@ module Recurly
       document = XML.new exception.response.body
       document.each_element 'error' do |el|
         attribute_path = el.attribute('field').value.split '.'
-        invalid! attribute_path[1, attribute_path.length], el.text
+
+        # Repsonses that come back in the form of
+        # 'billing_info.billing_info.something_here' won't get attached to the
+        # erros. Even if they do the error messages are less then
+        # informative. Remove this when Recurly fixes api responses.
+        if attribute_path.count('billing_info') >= 1
+          invalid! ['base'], 'The transaction was declined. Please use a different card, contact your bank, or contact support.'
+        else
+          invalid! attribute_path[1, attribute_path.length], el.text
+        end
       end
     end
 
