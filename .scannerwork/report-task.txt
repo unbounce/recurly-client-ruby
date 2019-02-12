@@ -1,7 +1,0 @@
-organization=unbouncerabbit-github
-projectKey=recurly-ruby-client
-serverUrl=https://sonarcloud.io
-serverVersion=7.7.0.21686
-dashboardUrl=https://sonarcloud.io/dashboard?id=recurly-ruby-client
-ceTaskId=AWjehkmrrgUWdm-Arvs8
-ceTaskUrl=https://sonarcloud.io/api/ce/task?id=AWjehkmrrgUWdm-Arvs8
