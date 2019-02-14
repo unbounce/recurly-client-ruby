@@ -2,6 +2,7 @@ language: ruby
 script:
   - bundle exec rake spec
   - gem build recurly.gemspec
+  - sonar-scanner
 cache: bundler
 sudo: false
 rvm:
@@ -24,3 +25,8 @@ matrix:
       env: XML=nokogiri
     - rvm: jruby
       env: XML=nokogiri
+addons:
+  sonarcloud:
+    organization: unbouncerabbit-github
+    token:
+      secure: ${SONAR_TOKEN}
