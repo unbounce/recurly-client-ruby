@@ -1,7 +1,13 @@
 language: ruby
+addons:
+  sonarcloud:
+    organization: unbouncerabbit-github
+    token:
+      secure: ${SONAR_TOKEN}
 script:
   - bundle exec rake spec
   - gem build recurly.gemspec
+  - sonar-scanner -Dsonar.projectKey=unbounce:recurly-client-ruby -Dsonar.sources=.
 cache: bundler
 sudo: false
 rvm:
