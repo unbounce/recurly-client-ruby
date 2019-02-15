@@ -7,6 +7,7 @@ addons:
 script:
   - bundle exec rake spec
   - gem build recurly.gemspec
+  - sonar-scanner
 cache: bundler
 sudo: false
 rvm:
