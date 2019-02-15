@@ -7,7 +7,7 @@ addons:
 script:
   - bundle exec rake spec
   - gem build recurly.gemspec
-  - sonar-scanner
+  - sonar-scanner -Dsonar.projectKey=unbounce:recurly-client-ruby -Dsonar.sources=.
 cache: bundler
 sudo: false
 rvm:
