@@ -1,4 +1,9 @@
 language: ruby
+addons:
+  sonarcloud:
+    organization: unbouncerabbit-github
+    token:
+      secure: $SONAR_LOGIN
 script:
   - bundle exec rake spec
   - gem build recurly.gemspec
