@@ -3,7 +3,7 @@ addons:
   sonarcloud:
     organization: unbouncerabbit-github
     token:
-      secure: $SONAR_LOGIN
+      secure: "Fefo0uAbYDdMBjUtUHS2n3wk2usuQCZxGhii4jOTDUHk50DZ4sgvAfxPHN5RN+f9FG2mwgJzi5rJINhXqpwTY7T846jPgCbOaihSOrk9H7bWTQ/K5HxWakr1F6x/frZc463YST61SiI0PFsu+oPBwA/tZ9fS8un3is8bYgZbkgw="
 script:
   - bundle exec rake spec
   - gem build recurly.gemspec
